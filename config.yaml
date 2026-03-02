@@ -1,0 +1,12 @@
+domains:
+  - oauth2.googleapis.com
+  - cloudcode-pa.googleapis.com
+  - daily-cloudcode-pa.googleapis.com
+  - autopush-cloudcode-pa.sandbox.googleapis.com
+  - feedback-pa.googleapis.com
+  - play.googleapis.com
+  - www.googleapis.com
+  - accounts.google.com
+  - antigravity-auto-updater-*.us-central1.run.app
+  - dl.google.com
+  - one.google.com

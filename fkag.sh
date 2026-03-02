@@ -2,7 +2,7 @@
 #
 # 域名级透明代理原型验证
 #
-# 将 urls.txt 中的域名通过 /etc/resolver/ 劫持到本地 DNS，
+# 将 config.yaml 中的域名通过 /etc/resolver/ 劫持到本地 DNS，
 # 本地 DNS 返回 loopback alias IP，TCP 透传经由 HTTP 代理转发。
 #
 # 用法：
@@ -12,7 +12,7 @@
 
 set -e
 
-URLS_FILE="urls.txt"
+CONFIG_FILE="config.yaml"
 RESOLVER_DIR="/etc/resolver"
 PROXY_HOST="127.0.0.1"
 PROXY_PORT="7897"
@@ -24,20 +24,20 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-if [ ! -f "${URLS_FILE}" ]; then
-    echo "找不到 ${URLS_FILE}"
+if [ ! -f "${CONFIG_FILE}" ]; then
+    echo "找不到 ${CONFIG_FILE}"
     exit 1
 fi
 
-# 读取域名
+# 解析 config.yaml 中的 domains 列表（无需 yq，纯 grep+sed）
 DOMAINS=()
 while IFS= read -r line; do
     line=$(echo "${line}" | xargs)
     [ -n "${line}" ] && DOMAINS+=("${line}")
-done < "${URLS_FILE}"
+done < <(grep -A9999 '^domains:' "${CONFIG_FILE}" | tail -n +2 | sed -n 's/^[[:space:]]*-[[:space:]]*//p')
 
 if [ ${#DOMAINS[@]} -eq 0 ]; then
-    echo "urls.txt 为空"
+    echo "config.yaml 中 domains 列表为空"
     exit 1
 fi
 
@@ -267,7 +267,9 @@ mkdir -p "${RESOLVER_DIR}"
 for i in "${!DOMAINS[@]}"; do
     domain="${DOMAINS[$i]}"
     vip="${VIPS[$i]}"
-    file="${RESOLVER_DIR}/${domain}"
+    # resolver 文件名不能含 *，通配符域名用 _wildcard_ 替代
+    safe_name=$(echo "${domain}" | sed 's/\*/_wildcard_/g')
+    file="${RESOLVER_DIR}/${safe_name}"
     printf "nameserver 127.0.0.1\nport %s\n" "${DNS_PORT}" > "${file}"
     CREATED_FILES+=("${file}")
     echo "  ${domain} -> ${vip}"

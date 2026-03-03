@@ -19,6 +19,11 @@ import (
 )
 
 func main() {
+	// childExitCode is set by run() when the child process exits with a non-zero
+	// code. We call os.Exit *after* rootCmd.Execute() returns so that all cleanup
+	// defers inside run() have already been executed.
+	childExitCode := 0
+
 	rootCmd := &cobra.Command{
 		Use:   "fkag [flags] -- <command> [args...]",
 		Short: "macOS domain-level transparent proxy tool",
@@ -27,7 +32,7 @@ It wraps a target command, routing specified domains through an upstream proxy
 (HTTP CONNECT or SOCKS5), and cleans up all system configuration on exit.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE:          run,
+		RunE:          func(cmd *cobra.Command, args []string) error { return run(cmd, args, &childExitCode) },
 	}
 
 	flags := rootCmd.Flags()
@@ -42,9 +47,13 @@ It wraps a target command, routing specified domains through an upstream proxy
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
+	// All defers inside run() have now completed. Propagate child exit code.
+	if childExitCode != 0 {
+		os.Exit(childExitCode)
+	}
 }
 
-func run(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string, childExitCode *int) error {
 	// Check root privileges
 	if os.Getuid() != 0 {
 		return fmt.Errorf("fkag requires root privileges, please run with sudo")
@@ -242,6 +251,8 @@ func run(cmd *cobra.Command, args []string) error {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
+	// childExitCode is passed in from main() so it survives after run() returns.
+
 	if cfg.Command != "" {
 		// 有子命令：启动子进程，透明代理其流量
 		if cfg.Verbose {
@@ -264,9 +275,7 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("child process error: %w", err)
 		}
-		if exitCode != 0 {
-			defer os.Exit(exitCode)
-		}
+		*childExitCode = exitCode
 	} else {
 		// 守护模式：不启动子进程，保持运行直到收到信号
 		fmt.Fprintf(os.Stderr, "Running in daemon mode. Press Ctrl+C to stop and clean up.\n")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/user/fkag/internal/vip"
 )
@@ -67,6 +68,13 @@ func NewResolverManagerWithDeps(domains []string, dnsPort int, baseDir string, f
 	}
 }
 
+// resolverFileName converts a domain name to a safe file name for /etc/resolver/.
+// Wildcards (*) are replaced with "_wildcard_" since the filesystem does not
+// allow literal asterisks in file names.
+func resolverFileName(domain string) string {
+	return strings.ReplaceAll(domain, "*", "_wildcard_")
+}
+
 // Setup creates resolver files and flushes the DNS cache.
 func (r *ResolverManager) Setup() error {
 	if err := r.fs.MkdirAll(r.baseDir, 0755); err != nil {
@@ -76,7 +84,7 @@ func (r *ResolverManager) Setup() error {
 	content := fmt.Sprintf("nameserver 127.0.0.1\nport %d\n", r.dnsPort)
 
 	for _, domain := range r.domains {
-		path := filepath.Join(r.baseDir, domain)
+		path := filepath.Join(r.baseDir, resolverFileName(domain))
 		if err := r.fs.WriteFile(path, []byte(content), 0644); err != nil {
 			return fmt.Errorf("failed to write resolver file %s: %w", path, err)
 		}
@@ -111,15 +119,16 @@ func (r *ResolverManager) CleanStale() error {
 		return fmt.Errorf("failed to glob resolver directory: %w", err)
 	}
 
-	domainSet := make(map[string]struct{}, len(r.domains))
+	// Build the set using the same safe file names used by Setup().
+	safeNameSet := make(map[string]struct{}, len(r.domains))
 	for _, d := range r.domains {
-		domainSet[d] = struct{}{}
+		safeNameSet[resolverFileName(d)] = struct{}{}
 	}
 
 	var firstErr error
 	for _, path := range matches {
 		name := filepath.Base(path)
-		if _, ok := domainSet[name]; ok {
+		if _, ok := safeNameSet[name]; ok {
 			if err := r.fs.Remove(path); err != nil && firstErr == nil {
 				firstErr = fmt.Errorf("failed to remove stale resolver file %s: %w", path, err)
 			}

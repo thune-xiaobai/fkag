@@ -11,12 +11,16 @@ import (
 
 // mockPFController records calls and can return configured errors.
 type mockPFController struct {
-	loadCalls   []loadCall
-	unloadCalls []string
-	enableCalls int
-	loadErr     error
-	unloadErr   error
-	enableErr   error
+	loadCalls      []loadCall
+	unloadCalls    []string
+	enableCalls    int
+	mainRulesLoads []string // rules passed to LoadMainRules
+	loadErr        error
+	unloadErr      error
+	enableErr      error
+	getNATErr      error
+	loadMainErr    error
+	natRules       string // returned by GetNATRules
 }
 
 type loadCall struct {
@@ -37,6 +41,17 @@ func (m *mockPFController) UnloadAnchor(anchorName string) error {
 func (m *mockPFController) EnablePF() error {
 	m.enableCalls++
 	return m.enableErr
+}
+
+func (m *mockPFController) GetNATRules() (string, error) {
+	return m.natRules, m.getNATErr
+}
+
+func (m *mockPFController) LoadMainRules(rules string) error {
+	m.mainRulesLoads = append(m.mainRulesLoads, rules)
+	// Update natRules so subsequent GetNATRules calls reflect the change.
+	m.natRules = rules
+	return m.loadMainErr
 }
 
 func TestNewAnchor_GeneratesCorrectRules(t *testing.T) {

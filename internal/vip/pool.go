@@ -46,7 +46,7 @@ func newPool(domains []string, executor CommandExecutor) *Pool {
 		executor: executor,
 	}
 	for i, domain := range domains {
-		ip := net.IPv4(127, 0, 0, byte(2+i))
+		ip := net.IPv4(127, 0, 0, byte(2+i)).To4()
 		p.forward[domain] = ip
 		p.reverse[ip.String()] = domain
 	}

@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/user/fkag/internal/config"
@@ -175,6 +176,9 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to setup loopback aliases: %w", err)
 	}
 	cleanups = append(cleanups, pool.Teardown)
+	// Give the kernel a moment to fully bind the new loopback aliases before
+	// we try net.Listen on those addresses (mirrors the shell script's sleep 0.5).
+	time.Sleep(100 * time.Millisecond)
 
 	// Step 3: Start DNS server
 	if cfg.Verbose {

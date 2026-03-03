@@ -170,14 +170,19 @@ func TestLoad_ErrorNoDomains(t *testing.T) {
 	}
 }
 
-func TestLoad_ErrorNoCommand(t *testing.T) {
+// TestLoad_DaemonModeNoCommand verifies that omitting a command is valid:
+// fkag supports a daemon mode where it runs without wrapping a child process.
+func TestLoad_DaemonModeNoCommand(t *testing.T) {
 	flags := CLIFlags{
 		Domains: "example.com",
 	}
 
-	_, err := Load(flags)
-	if err == nil {
-		t.Fatal("expected error for missing command, got nil")
+	cfg, err := Load(flags)
+	if err != nil {
+		t.Fatalf("expected no error in daemon mode (no command), got: %v", err)
+	}
+	if cfg.Command != "" {
+		t.Errorf("Command = %q, want empty string in daemon mode", cfg.Command)
 	}
 }
 
